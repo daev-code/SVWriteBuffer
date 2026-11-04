@@ -1,0 +1,6 @@
+[build]
+# The WoW 1.12 client is 32-bit.
+target = "i686-pc-windows-msvc"
+
+# Dynamic CRT only (the default for this target): the game already has a CRT loaded.
+# Never add "-C target-feature=+crt-static".

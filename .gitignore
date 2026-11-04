@@ -1,0 +1,30 @@
+# Rust build output
+target/
+*.rs.bk
+
+# Built DLLs copied out of target/ (releases are built by CI)
+*.dll
+*.pdb
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local agent settings
+.claude/
+CLAUDE.local.md
+
+# Scratch, logs, backups
+*.log
+*.tmp
+*.bak
+*.orig
+scratch/
+notes/

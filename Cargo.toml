@@ -1,0 +1,22 @@
+[package]
+name = "sv_write_buffer"
+version = "0.1.0"
+edition = "2021"
+description = "Buffers WoW 1.12 SavedVariables writes so each file is written in one call"
+license = "MIT"
+publish = false
+
+[lib]
+name = "SVWriteBuffer"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 2
+lto = true
+codegen-units = 1
+# Keep unwinding: every hook body runs inside catch_unwind so a Rust panic never
+# unwinds into the game. Do NOT set panic = "abort".
+strip = "debuginfo"
+
+[build-dependencies]
+embed-resource = "3.0.12"

@@ -1,0 +1,87 @@
+# Makes a draft release when a push to main bumps the version in Cargo.toml.
+# See "Releases" in CONTRIBUTING.md.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [Cargo.toml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write # sign the build provenance
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Only main of this repo: refuses other branches, tags and forks.
+    if: github.repository == 'daev-code/SVWriteBuffer' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Find the version
+        id: version
+        run: |
+          version=$(grep -m1 '^version *=' Cargo.toml | cut -d'"' -f2)
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already tagged, nothing to release."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install the 32-bit target
+        if: steps.version.outputs.new == 'true'
+        run: rustup target add i686-pc-windows-msvc
+
+      - name: Tag locally and check the version and build
+        if: steps.version.outputs.new == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git tag "$TAG"
+          tools/release-check.sh "$TAG"
+
+      - name: Record where the DLL was built
+        if: steps.version.outputs.new == 'true'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: target/i686-pc-windows-msvc/release/SVWriteBuffer.dll
+
+      - name: Push the tag and create the draft release
+        if: steps.version.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "A release for $TAG already exists. Releases must come from this workflow." >&2
+            exit 1
+          fi
+          dll=target/i686-pc-windows-msvc/release/SVWriteBuffer.dll
+          sha=$(sha256sum "$dll" | cut -d' ' -f1)
+          cat > notes.md <<EOF
+          Write what changed for players here, then publish.
+
+          SHA-256 of \`SVWriteBuffer.dll\`: \`$sha\`
+
+          Built by GitHub Actions from the tagged commit. To check that your download came
+          from this repo: \`gh attestation verify SVWriteBuffer.dll --repo $GITHUB_REPOSITORY\`
+          EOF
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" "$dll" \
+            --verify-tag --draft \
+            --title "SVWriteBuffer ${TAG#v}" \
+            --notes-file notes.md
