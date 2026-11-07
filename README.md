@@ -35,6 +35,8 @@ With only small addons, you may not notice a difference.
 
 Check your server's rules first. Some only allow approved DLLs.
 
+It's provided as is, without warranty. Use it at your own risk (see [LICENSE](LICENSE)).
+
 ## Install
 
 You need a client with a DLL loader that reads `dlls.txt` in the game folder. Most
@@ -83,4 +85,8 @@ attach your `SVWriteBuffer.log`. To build it yourself or see how it works, read
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE). The DLL also contains the Rust standard library
+(MIT or Apache-2.0, © The Rust Project Contributors).
+
+Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a
+trademark of Blizzard Entertainment.
