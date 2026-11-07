@@ -70,7 +70,9 @@ closed. The module comment at the top of `src/lib.rs` explains it in full.
 - Only patch kernel32's import entries, in memory. Never patch code, game memory or Lua.
 - Never bypass another DLL's hook. Patch nothing unless open, write and close can all be
   covered.
-- Untracked handles go straight to kernelbase.
+- Leave every other file alone. A call on a handle that isn't a tracked SavedVariables
+  file must be passed straight to the real function in `kernelbase.dll`, unchanged, as
+  if the DLL weren't loaded.
 - Never log paths or folder names. Players attach the log to public issues, and the
   folders hold account, realm and character names.
 - The DLL's own logging must run inside the `BUSY` flag, so the hooks pass it through.
