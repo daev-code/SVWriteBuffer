@@ -36,7 +36,8 @@ It checks that:
 - the contents match,
 - a size check mid-write sees everything written so far,
 - other files aren't buffered,
-- calls through function addresses saved before the DLL loaded are buffered too.
+- calls through function addresses saved before the DLL loaded are buffered too,
+- the log shows file names only, with no paths or folder names.
 
 It must print `ALL OK`.
 
@@ -70,6 +71,8 @@ closed. The module comment at the top of `src/lib.rs` explains it in full.
 - Never bypass another DLL's hook. Patch nothing unless open, write and close can all be
   covered.
 - Untracked handles go straight to kernelbase.
+- Never log paths or folder names. Players attach the log to public issues, and the
+  folders hold account, realm and character names.
 - The DLL's own logging must run inside the `BUSY` flag, so the hooks pass it through.
   Otherwise it recurses or deadlocks.
 - Only write a tracked handle through the hooked `WriteFile`. Anything else, like

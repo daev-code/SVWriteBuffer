@@ -26,8 +26,10 @@
 //! The DLL's own log writes go through the hooked functions too; a per-thread flag makes
 //! the hooks pass those straight through.
 //!
-//! Each session writes `SVWriteBuffer.log` next to the game executable: what was patched,
-//! and one line per buffered file (size, writes made, writes that reached the disk, time).
+//! Each game start replaces `SVWriteBuffer.log` next to the game executable: what was
+//! patched, and one line per buffered file (size, writes made, writes that reached the
+//! disk, time). Players attach it to bug reports, so it never contains paths: only the
+//! file name and whether it is per account or per character. It stops at `MAX_LOG`.
 
 #![cfg(all(windows, target_arch = "x86"))]
 #![allow(non_snake_case)] // the crate is named after the DLL file
@@ -53,6 +55,8 @@ const PAGE_READWRITE: u32 = 0x04;
 /// Write out early if one file's buffer grows past this.
 const MAX_BUFFER: usize = 64 * 1024 * 1024;
 const LOG_NAME: &str = "SVWriteBuffer.log";
+/// The log stops growing past this many bytes in one session.
+const MAX_LOG: usize = 1024 * 1024;
 
 #[link(name = "kernel32")]
 extern "system" {
@@ -190,11 +194,40 @@ fn log_path() -> std::path::PathBuf {
 }
 
 fn log(line: &str) {
+    static LOGGED: AtomicUsize = AtomicUsize::new(0);
+    let n = line.len() + 1;
+    let before = LOGGED.fetch_add(n, Ordering::Relaxed);
+    if before >= MAX_LOG {
+        return;
+    }
+    let full = before + n > MAX_LOG;
     let was = BUSY.with(|b| b.replace(true));
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(log_path()) {
-        let _ = writeln!(f, "{line}");
+        let _ = if full {
+            writeln!(f, "log full ({} KB), later lines dropped until the game restarts", MAX_LOG / 1024)
+        } else {
+            writeln!(f, "{line}")
+        };
     }
     BUSY.with(|b| b.set(was));
+}
+
+/// What the log shows for a SavedVariables path: the file name and whether it is per
+/// account or per character, never the folders (they hold account and character names).
+fn display_name(path: &str) -> String {
+    let parts: Vec<&str> = path.split(['\\', '/']).filter(|p| !p.is_empty()).collect();
+    let Some(last) = parts.len().checked_sub(1) else { return String::new() };
+    // The folder whose contents are the file: `...\SavedVariables\<file>`, or the file
+    // itself for the client's own `...\SavedVariables.lua`.
+    let dir = parts.iter().rposition(|p| p.eq_ignore_ascii_case("savedvariables")).unwrap_or(last);
+    let file = if dir < last { parts[dir + 1..].join("\\") } else { parts[last].to_string() };
+    // WTF\Account\<account>\SavedVariables or WTF\Account\<account>\<realm>\<character>\SavedVariables
+    let depth = parts[..dir].iter().rposition(|p| p.eq_ignore_ascii_case("account")).map(|a| dir - a - 1);
+    match depth {
+        Some(1) => format!("{file} (account)"),
+        Some(3) => format!("{file} (character)"),
+        _ => file,
+    }
 }
 
 unsafe fn orig<T: Copy>(i: usize) -> T {
@@ -264,7 +297,7 @@ unsafe fn maybe_track(h: Handle, path: Option<String>, access: u32, flags: u32) 
     let _ = catch_unwind(AssertUnwindSafe(|| {
         if is_saved_variables(&path) {
             let mut map = files();
-            let entry = Tracked { name: path, buf: Vec::with_capacity(256 * 1024), calls: 0, bytes: 0, flush_ticks: 0, flushes: 0 };
+            let entry = Tracked { name: display_name(&path), buf: Vec::with_capacity(256 * 1024), calls: 0, bytes: 0, flush_ticks: 0, flushes: 0 };
             if map.insert(h as usize, entry).is_none() {
                 TRACKED.fetch_add(1, Ordering::Relaxed);
             }

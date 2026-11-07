@@ -72,8 +72,12 @@ fn main() {
     let keep = [ReadFile as *const () as usize, SetFilePointer as *const () as usize, SetEndOfFile as *const () as usize, FlushFileBuffers as *const () as usize];
     std::hint::black_box(keep);
 
-    let dir = std::env::temp_dir().join("svwb-test").join("SavedVariables");
+    // The client's layout, with made-up names that must never show up in the log.
+    let account = std::env::temp_dir().join("svwb-test").join("WTF").join("Account").join("TESTACCOUNT");
+    let dir = account.join("TestRealm").join("TestChar").join("SavedVariables");
+    let account_dir = account.join("SavedVariables");
     std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&account_dir).unwrap();
     std::env::set_current_dir(dir.parent().unwrap()).unwrap();
     let sv = dir.join("TestAddon.lua").to_string_lossy().into_owned();
     let other = dir.parent().unwrap().join("other.txt").to_string_lossy().into_owned();
@@ -114,7 +118,7 @@ fn main() {
     assert_eq!(std::fs::read(&other).unwrap(), toks[..1000].concat());
 
     // CreateFileW path, as DLLs that save SavedVariables themselves may use.
-    let sv_w = dir.join("WideAddon.lua");
+    let sv_w = account_dir.join("WideAddon.lua");
     let (wms, _) = unsafe { write_tokens_with(&sv_w.to_string_lossy(), &toks, None, true) };
     println!("CreateFileW with DLL: {wms:.1} ms");
     assert_eq!(std::fs::read(&sv_w).unwrap(), expected, "CreateFileW content differs");
@@ -140,5 +144,10 @@ fn main() {
     assert!(log.lines().any(|l| l.contains("writes ->") && l.contains("TestAddon.lua")));
     assert!(log.lines().any(|l| l.contains(" 360000 writes ->") && l.contains("WideAddon.lua")), "CreateFileW file must be buffered");
     assert!(!log.lines().any(|l| l.contains("writes ->") && l.contains("other.txt")), "non-SavedVariables file must not be buffered");
+    assert!(log.lines().any(|l| l.ends_with(" TestAddon.lua (character)")), "per-character file must be labelled");
+    assert!(log.lines().any(|l| l.ends_with(" WideAddon.lua (account)")), "account-wide file must be labelled");
+    for private in ["TESTACCOUNT", "TestRealm", "TestChar", "svwb-test", ":\\"] {
+        assert!(!log.contains(private), "the log must not contain paths or folder names ({private})");
+    }
     println!("ALL OK");
 }

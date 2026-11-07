@@ -51,19 +51,23 @@ the line is still there.
 
 ## Check that it works
 
-Each session writes `SVWriteBuffer.log` in the game folder. After a `/reload` it looks
-like this:
+The DLL writes `SVWriteBuffer.log` in the game folder. It starts fresh every time the game
+starts, and stops growing at 1 MB. After a `/reload` it looks like this:
 
 ```
 SVWriteBuffer 0.1.0
 active: patched kernel32 CloseHandle ReadFile SetFilePointer ... CreateFileW
-  6438184 bytes   456930 writes -> 1      1.3 ms  WTF\Account\...\SavedVariables\aux-addon.lua
-   690980 bytes   146909 writes -> 1      0.2 ms  WTF\Account\...\SavedVariables\pfUI.lua
+  6438184 bytes   456930 writes -> 1      1.3 ms  aux-addon.lua (account)
+   690980 bytes   146909 writes -> 1      0.2 ms  pfUI.lua (character)
 ```
 
 The first line is the version. After the first two lines, each line is one saved file:
-size, writes the client made, writes that hit the disk, and time taken. If the second
-line says `not active`, the reason follows and the game runs as if the DLL weren't there.
+size, writes the client made, writes that hit the disk, time taken, and the file name.
+If the second line says `not active`, the reason follows and the game runs as if the DLL
+weren't there.
+
+The log never contains folder paths, so no account, realm or character names. It's safe
+to attach to an issue.
 
 You can also see the version under the DLL's Properties > Details.
 
